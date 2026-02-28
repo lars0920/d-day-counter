@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-Day Counter - Cube Marketing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f7f9fc;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --brand-blue: #1b7af0;
+            --btn-bg: #e2efff;
+            --border-light: #e5e7eb;
+            --white: #ffffff;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            font-family: 'Inter', -apple-system, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Physics Canvas layer */
+        #world {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: auto;
+            /* Catch drags */
+        }
+
+        /* UI Layer - lets clicks pass through space between elements */
+        .layout-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .clickable {
+            pointer-events: auto;
+        }
+
+        /* Navbar */
+        .nav-container {
+            padding: 24px 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--text-main);
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .nav-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--white);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .nav-icon:hover {
+            transform: translateY(-2px);
+        }
+
+        .nav-icon.blue-bg {
+            background: #ddebff;
+            color: var(--brand-blue);
+        }
+
+        /* Header */
+        .header-container {
+            text-align: center;
+            margin-top: 5vh;
+        }
+
+        .header-container h1 {
+            font-size: 46px;
+            font-weight: 800;
+            margin: 0 0 12px 0;
+            color: var(--text-main);
+            letter-spacing: -1px;
+        }
+
+        .header-container p {
+            font-size: 18px;
+            color: var(--text-muted);
+            margin: 0;
+            font-weight: 400;
+        }
+
+        /* Input Card */
+        .input-card {
+            background: var(--white);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            border-radius: 20px;
+            padding: 32px;
+            margin: 40px auto;
+            width: fit-content;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .inputs-row {
+            display: flex;
+            gap: 20px;
+        }
+
+        .input-group {
+            position: relative;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 14px 16px;
+            width: 240px;
+            display: flex;
+            align-items: center;
+            background: var(--white);
+            transition: border-color 0.2s;
+        }
+
+        .input-group:focus-within {
+            border-color: var(--brand-blue);
+        }
+
+        .input-group .floating-label {
+            position: absolute;
+            top: -9px;
+            left: 12px;
+            background: var(--white);
+            padding: 0 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--brand-blue);
+        }
+
+        .input-group input {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-size: 15px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-weight: 500;
+            background: transparent;
+        }
+
+        .input-group input::placeholder {
+            color: #9ca3af;
+            font-weight: 400;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
+        }
+
+        .set-dday-btn {
+            background: var(--btn-bg);
+            color: var(--brand-blue);
+            font-weight: 700;
+            font-size: 15px;
+            padding: 12px 32px;
+            border-radius: 30px;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .set-dday-btn:hover {
+            background: #d2e5ff;
+            transform: scale(1.02);
+        }
+
+        .set-dday-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Counter Boxes Layout (Static DOM version before fall) */
+        .counter-grid {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            margin-top: 10px;
+            transition: opacity 0.3s;
+        }
+
+        .counter-box {
+            width: 170px;
+            height: 130px;
+            background: var(--white);
+            border-radius: 20px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid rgba(0, 0, 0, 0.02);
+        }
+
+        .counter-box .num {
+            font-size: 52px;
+            font-weight: 800;
+            color: var(--brand-blue);
+            line-height: 1.1;
+            margin-top: 4px;
+        }
+
+        .counter-box .lbl {
+            font-size: 12px;
+            color: #9ca3af;
+            font-weight: 700;
+            letter-spacing: 2px;
+            margin-top: 8px;
+        }
+
+        /* Bottom elements */
+        .bottom-area {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 30px;
+        }
+
+        .bottom-dark-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 30px;
+            background: #0f172a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.25);
+            cursor: pointer;
+            margin-bottom: 40px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .bottom-dark-btn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.35);
+        }
+
+        .bottom-dark-btn:active {
+            transform: translateY(0);
+        }
+
+        .footer {
+            text-align: center;
+            color: #9ca3af;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .footer p {
+            margin: 6px 0;
+        }
+
+        .footer .brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="world"></canvas>
+
+    <div class="layout-wrapper">
+        <!-- SVG Definitions -->
+        <svg width="0" height="0" style="position:absolute">
+            <defs>
+                <clipPath id="cube-clip">
+                    <rect width="24" height="24" rx="6" />
+                </clipPath>
+            </defs>
+        </svg>
+
+        <div class="nav-container clickable">
+            <div class="nav-left">
+                <svg viewBox="0 0 24 24" width="28" height="28">
+                    <rect width="24" height="24" rx="6" fill="#1b7af0" />
+                    <path d="M12 7 L17 9.5 L12 12 L7 9.5 Z" fill="white" />
+                    <path d="M17 9.5 L17 14.5 L12 17 L12 12 Z" fill="rgba(255,255,255,0.8)" />
+                    <path d="M7 9.5 L7 14.5 L12 17 L12 12 Z" fill="rgba(255,255,255,0.6)" />
+                </svg>
+                Cube Marketing
+            </div>
+            <div class="nav-right">
+                <div class="nav-icon">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#4b5563" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
+                </div>
+                <div class="nav-icon blue-bg">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="header-container clickable">
+            <h1>D-Day Counter</h1>
+            <p>Track your next big milestone with precision.</p>
+        </div>
+
+        <div class="input-card clickable">
+            <div class="inputs-row">
+                <div class="input-group">
+                    <span class="floating-label">Event Name</span>
+                    <input type="text" id="eventTitle" placeholder="Product Launch 2024">
+                </div>
+                <div class="input-group">
+                    <span class="floating-label">Target Date</span>
+                    <input type="date" id="eventDate">
+                </div>
+            </div>
+            <button class="set-dday-btn" id="generateBtn">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="13" r="8"></circle>
+                    <path d="M12 9v4l2 2"></path>
+                    <path d="M10 3h4"></path>
+                </svg>
+                Set D-Day
+            </button>
+        </div>
+
+        <div class="counter-grid clickable" id="staticCounters">
+            <div class="counter-box" data-type="days">
+                <div class="num">00</div>
+                <div class="lbl">DAYS</div>
+            </div>
+            <div class="counter-box" data-type="hours">
+                <div class="num">00</div>
+                <div class="lbl">HOURS</div>
+            </div>
+            <div class="counter-box" data-type="minutes">
+                <div class="num">00</div>
+                <div class="lbl">MINUTES</div>
+            </div>
+            <div class="counter-box" data-type="seconds">
+                <div class="num">00</div>
+                <div class="lbl">SECONDS</div>
+            </div>
+        </div>
+
+        <div class="bottom-area">
+            <div class="bottom-dark-btn clickable" id="gravityDropBtn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <circle cx="6" cy="6" r="1.5" />
+                    <circle cx="12" cy="6" r="1.5" />
+                    <circle cx="18" cy="6" r="1.5" />
+                    <circle cx="6" cy="12" r="1.5" />
+                    <circle cx="12" cy="12" r="1.5" />
+                    <circle cx="18" cy="12" r="1.5" />
+                    <circle cx="6" cy="18" r="1.5" />
+                    <circle cx="12" cy="18" r="1.5" />
+                    <circle cx="18" cy="18" r="1.5" />
+                </svg>
+            </div>
+            <div class="footer clickable">
+                <div class="brand">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="#9ca3af">
+                        <path
+                            d="M12 2L3 6v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V6l-9-4zm-2 16l-4-4 1.41-1.41L10 15.17l6.59-6.59L18 10l-8 8z" />
+                    </svg>
+                    Cube Marketing Enterprise Solution
+                </div>
+                <p>&copy; 2024 Cube Marketing. Designed for precision.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const Engine = Matter.Engine,
+            Runner = Matter.Runner,
+            Bodies = Matter.Bodies,
+            Composite = Matter.Composite,
+            Mouse = Matter.Mouse,
+            MouseConstraint = Matter.MouseConstraint;
+
+        const engine = Engine.create();
+        const canvas = document.getElementById('world');
+        const ctx = canvas.getContext('2d');
+
+        // Physics objects
+        let blocks = [];
+        let fireworkParticles = [];
+        let isPhysicsActive = false;
+        let ddayActive = false;
+        let setDateValue = 0;
+
+        const wallThickness = 100;
+        let groundY = window.innerHeight + wallThickness / 2;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            if (ground) {
+                Matter.Body.setPosition(ground, { x: canvas.width / 2, y: groundY });
+                Matter.Body.setPosition(wallLeft, { x: 0 - wallThickness / 2, y: canvas.height / 2 });
+                Matter.Body.setPosition(wallRight, { x: canvas.width + wallThickness / 2, y: canvas.height / 2 });
+            }
+        }
+
+        // Walls
+        let ground = Bodies.rectangle(window.innerWidth / 2, groundY, window.innerWidth * 3, wallThickness, { isStatic: true, friction: 0.8 });
+        let wallLeft = Bodies.rectangle(0 - wallThickness / 2, window.innerHeight / 2, wallThickness, window.innerHeight * 3, { isStatic: true });
+        let wallRight = Bodies.rectangle(window.innerWidth + wallThickness / 2, window.innerHeight / 2, wallThickness, window.innerHeight * 3, { isStatic: true });
+
+        Composite.add(engine.world, [ground, wallLeft, wallRight]);
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Canvas Mouse interactivity
+        const mouse = Mouse.create(canvas);
+        const mConstraint = MouseConstraint.create(engine, {
+            mouse: mouse,
+            constraint: { stiffness: 0.2, render: { visible: false } }
+        });
+        Composite.add(engine.world, mConstraint);
+
+        // Allow pure canvas scrolling without capturing page scroll
+        mouse.element.removeEventListener("mousewheel", mouse.mousewheel);
+        mouse.element.removeEventListener("DOMMouseScroll", mouse.mousewheel);
+
+        // Pre-fill a valid date (3 seconds in future for fireworks demo)
+        const now = new Date();
+        now.setSeconds(now.getSeconds() + 5);
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('eventDate').value = now.toISOString().slice(0, 10); // Native date input standard
+
+        // Fireworks setup
+        function createExplosion(x, y) {
+            const colors = ['#1b7af0', '#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#ffffff'];
+            for (let i = 0; i < 60; i++) {
+                fireworkParticles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 16,
+                    vy: (Math.random() - 0.5) * 16,
+                    life: 1.0 + Math.random() * 0.4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    size: 3 + Math.random() * 5
+                });
+            }
+        }
+
+        function drawBox(ctx, x, y, angle, type, diff) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+
+            const w = 170;
+            const h = 130;
+            const r = 20;
+
+            // Soft Drop Shadow perfectly matching CSS
+            ctx.shadowColor = 'rgba(0,0,0,0.06)';
+            ctx.shadowBlur = 30;
+            ctx.shadowOffsetY = 10;
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.roundRect(-w / 2, -h / 2, w, h, r);
+            ctx.fill();
+
+            // Light border
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = 'rgba(0,0,0,0.03)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Calculate values
+            let val = "00";
+            if (diff > 0) {
+                if (type === 'days') val = Math.floor(diff / 86400000).toString().padStart(2, '0');
+                if (type === 'hours') val = Math.floor((diff % 86400000) / 3600000).toString().padStart(2, '0');
+                if (type === 'minutes') val = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                if (type === 'seconds') val = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+            }
+
+            // Draw Texts
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            ctx.fillStyle = '#1b7af0'; // Brand Blue
+            ctx.font = `800 52px 'Inter', sans-serif`;
+            ctx.fillText(val, 0, -2); // Center number
+
+            ctx.fillStyle = '#9ca3af'; // Grey muted
+            ctx.font = `700 12px 'Inter', sans-serif`;
+            // Using a simple trick for letter spacing in canvas if supported
+            if (ctx.letterSpacing !== undefined) ctx.letterSpacing = "2px";
+            ctx.fillText(type.toUpperCase(), 0, 42);
+            if (ctx.letterSpacing !== undefined) ctx.letterSpacing = "0px";
+
+            ctx.restore();
+        }
+
+        document.getElementById('generateBtn').addEventListener('click', () => {
+            const dateInput = document.getElementById('eventDate').value;
+            if (!dateInput) return alert('Please set a target date.');
+
+            setDateValue = new Date(dateInput).getTime();
+            // Optional: offset timezone or exact hours to midnight if needed.
+
+            if (!isPhysicsActive) {
+                // Raise the ground so they only fall about 5cm (approx 120px)
+                const gridRect = document.querySelector('.counter-grid').getBoundingClientRect();
+                groundY = gridRect.bottom + 120 + wallThickness / 2;
+                Matter.Body.setPosition(ground, { x: canvas.width / 2, y: groundY });
+
+                // Initialize Physics Blocks from DOM positions
+                const domBoxes = document.querySelectorAll('.counter-box');
+                domBoxes.forEach(box => {
+                    const rect = box.getBoundingClientRect();
+                    const x = rect.left + rect.width / 2;
+                    const y = rect.top + rect.height / 2;
+
+                    const body = Bodies.rectangle(x, y, rect.width, rect.height, {
+                        restitution: 0.6, friction: 0.2, chamfer: { radius: 20 }
+                    });
+                    body.custom = { type: box.dataset.type };
+
+                    Composite.add(engine.world, body);
+                    blocks.push(body);
+                });
+
+                // Hide DOM elements and let Canvas take over drawing
+                document.getElementById('staticCounters').style.opacity = '0';
+                setTimeout(() => document.getElementById('staticCounters').style.display = 'none', 300);
+
+                isPhysicsActive = true;
+            }
+        });
+
+        // Easter Egg: Bottom button pushes blocks upwards
+        document.getElementById('gravityDropBtn').addEventListener('click', () => {
+            if (isPhysicsActive) {
+                blocks.forEach(body => {
+                    Matter.Body.setVelocity(body, {
+                        x: (Math.random() - 0.5) * 15,
+                        y: -15 - Math.random() * 10
+                    });
+                    Matter.Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.4);
+                });
+            } else {
+                document.getElementById('generateBtn').click();
+            }
+        });
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ddayActive = false;
+
+            if (isPhysicsActive) {
+                const nowMs = new Date().getTime();
+                const diff = setDateValue - nowMs;
+
+                if (diff <= 0) {
+                    ddayActive = true;
+                }
+
+                // Render Canvas Gravity Blocks
+                blocks.forEach(body => {
+                    drawBox(ctx, body.position.x, body.position.y, body.angle, body.custom.type, diff);
+                });
+
+                // Fireworks
+                if (ddayActive && Math.random() < 0.1) {
+                    createExplosion(Math.random() * canvas.width, canvas.height * 0.2 + Math.random() * canvas.height * 0.6);
+                }
+            }
+
+            // Render Particles
+            for (let i = fireworkParticles.length - 1; i >= 0; i--) {
+                let p = fireworkParticles[i];
+                p.x += p.vx; p.y += p.vy; p.vy += 0.3; // Gravity pull
+                p.life -= 0.012;
+
+                if (p.life <= 0) {
+                    fireworkParticles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            requestAnimationFrame(render);
+        }
+
+        // Start engines
+        Runner.run(Runner.create(), engine);
+        render();
+    </script>
+</body>
+
+</html>
