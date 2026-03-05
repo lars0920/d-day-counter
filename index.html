@@ -230,8 +230,30 @@
             transform: scale(1.02);
         }
 
-        .set-dday-btn:active {
+        .set-dday-btn:active,
+        .reset-btn:active {
             transform: scale(0.98);
+        }
+
+        .reset-btn {
+            background: #f1f5f9;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 15px;
+            padding: 12px 24px;
+            border-radius: 30px;
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .reset-btn:hover {
+            background: #e2e8f0;
+            color: #475569;
+            transform: scale(1.02);
         }
 
         /* Counter Boxes Layout (Static DOM version before fall) */
@@ -379,15 +401,25 @@
                     <input type="date" id="eventDate">
                 </div>
             </div>
-            <button class="set-dday-btn" id="generateBtn">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="13" r="8"></circle>
-                    <path d="M12 9v4l2 2"></path>
-                    <path d="M10 3h4"></path>
-                </svg>
-                Set D-Day
-            </button>
+            <div style="display: flex; gap: 12px; margin-top: 8px;">
+                <button class="set-dday-btn" id="generateBtn">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="13" r="8"></circle>
+                        <path d="M12 9v4l2 2"></path>
+                        <path d="M10 3h4"></path>
+                    </svg>
+                    Set D-Day
+                </button>
+                <button class="reset-btn" id="resetBtn" style="display: none;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                        <path d="M3 3v5h5"></path>
+                    </svg>
+                    Reset
+                </button>
+            </div>
         </div>
 
         <div class="counter-grid clickable" id="staticCounters">
@@ -589,7 +621,40 @@
                 document.getElementById('staticCounters').style.opacity = '0';
                 setTimeout(() => document.getElementById('staticCounters').style.display = 'none', 300);
 
+                // Show Reset Button, Hide Set D-Day Button
+                document.getElementById('generateBtn').style.display = 'none';
+                document.getElementById('resetBtn').style.display = 'flex';
+
                 isPhysicsActive = true;
+            }
+        });
+
+        // Reset Button Logic
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            if (isPhysicsActive) {
+                // Remove all falling blocks from the physics world
+                blocks.forEach(body => {
+                    Composite.remove(engine.world, body);
+                });
+                blocks = [];
+                fireworkParticles = [];
+
+                // Reset state
+                isPhysicsActive = false;
+                ddayActive = false;
+
+                // Restore DOM Elements
+                const staticCounters = document.getElementById('staticCounters');
+                staticCounters.style.display = 'flex';
+                // Small delay to allow display to apply before opacity transition
+                setTimeout(() => staticCounters.style.opacity = '1', 50);
+
+                // Clear the canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Swap buttons back
+                document.getElementById('generateBtn').style.display = 'flex';
+                document.getElementById('resetBtn').style.display = 'none';
             }
         });
 
